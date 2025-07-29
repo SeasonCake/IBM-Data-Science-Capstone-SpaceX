@@ -84,4 +84,4 @@ To launch the interactive dashboard on your local machine, please follow these s
 
 A comprehensive summary of the project's methodology, key findings, and final model recommendations is available in the final presentation PDF.
 
-**[View Final Presentation](./Data_Science_Project_An_Analysis_and_Prediction_of_SpaceX_Launch_Success.pdf)**
+**[View Final Presentation](https://github.com/SeasonCake/IBM-Data-Science-Capstone-SpaceX/blob/main/Presentation/Data_Science_Project_An_Analysis_and_Prediction_of_SpaceX_Launch_Success.pdf)**
