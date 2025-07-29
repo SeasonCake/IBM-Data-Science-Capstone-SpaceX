@@ -20,6 +20,7 @@ except requests.exceptions.RequestException as e:
     print(f"Error downloading data: {e}")
     # As a fallback, try to load a local copy if it exists
     try:
+        # Note: This assumes the CSV is in the same directory as the script.
         spacex_df = pd.read_csv("spacex_launch_dash.csv")
         print("Loaded local copy of the dataset.")
     except FileNotFoundError:
@@ -32,22 +33,21 @@ min_payload = spacex_df['Payload Mass (kg)'].min()
 
 # -------------------- Dash App Initialization --------------------
 app = dash.Dash(__name__)
+server = app.server
 
 # Create the layout of the app
 app.layout = html.Div(children=[
     html.H1('SpaceX Launch Records Dashboard',
-            style={'textAlign': 'center', 'color': '#503D36',
-                   'font-size': 40}),
+            style={'textAlign': 'center', 'color': '#503D36', 'font-size': 40}),
     
     # TASK 1: Add a dropdown list to enable Launch Site selection
-    # The default select value is for ALL sites
     dcc.Dropdown(id='site-dropdown',
                  options=[
                      {'label': 'All Sites', 'value': 'ALL'},
                      {'label': 'CCAFS LC-40', 'value': 'CCAFS LC-40'},
                      {'label': 'VAFB SLC-4E', 'value': 'VAFB SLC-4E'},
                      {'label': 'KSC LC-39A', 'value': 'KSC LC-39A'},
-                     {'label': 'CCAFS SLC-40', 'value': 'CCAFS SLC-40'} # Note: This seems to be a duplicate in the original lab
+                     # CHANGE: Removed duplicate 'CCAFS SLC-40' entry
                  ],
                  value='ALL',
                  placeholder="Select a Launch Site here",
@@ -56,7 +56,6 @@ app.layout = html.Div(children=[
     html.Br(),
 
     # TASK 2: Add a pie chart to show the total successful launches count for all sites
-    # If a specific launch site was selected, show the Success vs. Failed counts for the site
     html.Div(dcc.Graph(id='success-pie-chart')),
     html.Br(),
 
@@ -74,28 +73,28 @@ app.layout = html.Div(children=[
 
 # -------------------- Callback Functions --------------------
 
-# TASK 2:
-# Add a callback function for `site-dropdown` as input, `success-pie-chart` as output
 @app.callback(Output(component_id='success-pie-chart', component_property='figure'),
               Input(component_id='site-dropdown', component_property='value'))
 def get_pie_chart(entered_site):
+    """
+    Generates the pie chart based on the selected launch site.
+    """
     if entered_site == 'ALL':
-        # For all sites, show the success rate per site
         fig = px.pie(spacex_df, 
                      values='class', 
                      names='Launch Site', 
-                     title='Total Success Launches by Site')
+                     title='Total Successful Launches by Site')
         return fig
     else:
-        # For a specific site, show the success vs failure counts
+        # CHANGE: Simplified and robust logic for single-site pie chart
         filtered_df = spacex_df[spacex_df['Launch Site'] == entered_site]
-        # Group by the 'class' column (0 for failure, 1 for success)
-        site_df = filtered_df.groupby(['class'], as_index=False).count()
-        site_df.rename(columns={'Launch Site': 'count'}, inplace=True)
-        # Manually set names for the pie chart slices
-        site_df['Outcome'] = site_df['class'].apply(lambda x: 'Success' if x == 1 else 'Failure')
+        # Use value_counts to get counts of 1s (Success) and 0s (Failure)
+        outcome_counts = filtered_df['class'].value_counts().reset_index()
+        outcome_counts.columns = ['class', 'count']
+        # Map class to readable names
+        outcome_counts['Outcome'] = outcome_counts['class'].map({1: 'Success', 0: 'Failure'})
         
-        fig = px.pie(site_df, 
+        fig = px.pie(outcome_counts, 
                      values='count', 
                      names='Outcome', 
                      title=f'Total Success vs. Failure for Site {entered_site}',
@@ -103,32 +102,31 @@ def get_pie_chart(entered_site):
                      color_discrete_map={'Success':'green', 'Failure':'red'})
         return fig
 
-# TASK 4:
-# Add a callback function for `site-dropdown` and `payload-slider` as inputs, `success-payload-scatter-chart` as output
 @app.callback(Output(component_id='success-payload-scatter-chart', component_property='figure'),
               [Input(component_id='site-dropdown', component_property='value'), 
                Input(component_id="payload-slider", component_property="value")])
 def get_scatter_plot(entered_site, payload_range):
+    """
+    Generates the scatter plot based on selected site and payload range.
+    """
     low, high = payload_range
-    # Filter by payload range
+    # Filter by payload range first
     df_filtered = spacex_df[(spacex_df['Payload Mass (kg)'] >= low) & (spacex_df['Payload Mass (kg)'] <= high)]
     
     if entered_site == 'ALL':
-        # Render scatter plot for all sites
         fig = px.scatter(df_filtered, 
                          x='Payload Mass (kg)', 
                          y='class', 
                          color='Booster Version Category',
-                         title=f'Payload vs. Launch Outcome for All Sites (Payload: {low}-{high} kg)')
+                         title=f'Payload vs. Outcome for All Sites (Payload: {low}-{high} kg)')
         return fig
     else:
-        # Filter further by the selected site
-        df_site_filtered = df_filtered[df_filtered['Launch Site'] == entered_site]
-        fig = px.scatter(df_site_filtered, 
+        site_filtered_df = df_filtered[df_filtered['Launch Site'] == entered_site]
+        fig = px.scatter(site_filtered_df, 
                          x='Payload Mass (kg)', 
                          y='class', 
                          color='Booster Version Category',
-                         title=f'Payload vs. Launch Outcome for {entered_site} (Payload: {low}-{high} kg)')
+                         title=f'Payload vs. Outcome for {entered_site} (Payload: {low}-{high} kg)')
         return fig
 
 # -------------------- Main Execution Block --------------------
